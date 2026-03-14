@@ -1,65 +1,577 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  Sun, Moon, Zap, TrendingUp, Bot, BarChart2, Radio,
+  CircleDot, CheckCircle2, Loader2, ArrowUpRight, SendHorizonal,
+  Wallet, Activity, Menu, X, ReceiptText, Play, Square, Cpu, RefreshCw,
+} from "lucide-react";
+import { SERVICES } from "@/lib/services";
+import { formatCKB, shortHash } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+
+const SERVICE_ICONS: Record<string, React.ReactNode> = {
+  "ckb-oracle":      <TrendingUp size={14} />,
+  "ai-summarizer":   <Bot size={14} />,
+  "chain-analytics": <BarChart2 size={14} />,
+  "fiber-stats":     <Radio size={14} />,
+};
+
+const AUTOPILOT_TASKS = [
+  "Get the current CKB price and Fiber Network stats, then give a full network health brief",
+  "Fetch chain analytics and summarize the key on-chain metrics for CKB today",
+  "Get CKB price and chain analytics — give me a market and network combined report",
+  "Run Fiber stats and summarize the CKB ecosystem using real on-chain data",
+];
+
+interface Payment { id:string; serviceId:string; serviceName:string; amount:number; txHash:string; ts:number; fresh:boolean; }
+interface Msg      { id:string; role:"user"|"agent"|"status"; text:string; }
+
+const EXAMPLES = [
+  "What is the current CKB price?",
+  "Summarize the Nervos CKB ecosystem",
+  "Show Fiber Network stats and chain analytics",
+];
+
+/* ─── Payment Toast ─── */
+function PaymentToast({ toast }: { toast:{ serviceName:string; amount:number; txHash:string }|null }) {
+  if (!toast) return null;
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div style={{ position:"fixed", inset:0, zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", pointerEvents:"none" }}>
+      <div style={{ animation:"toastPop 2.4s ease-out forwards" }}>
+        <div style={{ background:"var(--green)", borderRadius:24, padding:"24px 40px", textAlign:"center", boxShadow:"0 0 80px rgba(34,197,94,0.5), 0 0 160px rgba(34,197,94,0.2)", minWidth:280 }}>
+          <div style={{ width:48, height:48, borderRadius:16, background:"rgba(255,255,255,0.15)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}>
+            <Zap size={24} color="#fff" fill="#fff" />
+          </div>
+          <div style={{ fontSize:11, fontWeight:700, letterSpacing:"0.15em", color:"rgba(255,255,255,0.7)", marginBottom:6, textTransform:"uppercase" }}>Payment Sent</div>
+          <div style={{ fontSize:32, fontWeight:800, color:"#fff", fontFamily:"monospace", letterSpacing:"-0.02em", marginBottom:8 }}>-{toast.amount} CKB</div>
+          <div style={{ fontSize:12, color:"rgba(255,255,255,0.8)", marginBottom:8, fontWeight:500 }}>{toast.serviceName}</div>
+          <div style={{ display:"inline-flex", alignItems:"center", gap:5, background:"rgba(0,0,0,0.2)", borderRadius:6, padding:"3px 8px" }}>
+            <CheckCircle2 size={10} color="rgba(255,255,255,0.6)" />
+            <span style={{ fontSize:10, color:"rgba(255,255,255,0.6)", fontFamily:"monospace" }}>{toast.txHash.slice(0,20)}…</span>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Sidebar ─── */
+function Sidebar({ activeId, payStep }: { activeId:string|null; payStep:number }) {
+  const STEPS = ["Agent requests resource","Server returns HTTP 402","Agent pays via Fiber","Resource unlocked instantly"];
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", padding:"14px 0", overflowY:"auto" }}>
+      <p style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.12em", color:"var(--subtle)", padding:"0 16px 10px" }}>Services</p>
+      <div style={{ display:"flex", flexDirection:"column", gap:2, padding:"0 8px" }}>
+        {SERVICES.map(svc => {
+          const active = activeId===svc.id;
+          return (
+            <div key={svc.id} style={{ display:"flex", alignItems:"center", gap:10, borderRadius:10, padding:"8px 10px", transition:"all 0.15s", background:active?"var(--green-dim)":"transparent", border:`1px solid ${active?"var(--green)":"transparent"}` }}>
+              <div style={{ width:28, height:28, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, background:active?"var(--green-dim)":"var(--surface-2)", border:`1px solid ${active?"var(--green-ring)":"var(--border)"}`, color:active?"var(--green)":"var(--muted)", transition:"all 0.2s" }}>
+                {SERVICE_ICONS[svc.id]}
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:4 }}>
+                  <span style={{ fontSize:12, fontWeight:500, color:"var(--text)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{svc.name}</span>
+                  <span style={{ fontSize:10, fontFamily:"monospace", color:active?"var(--green)":"var(--muted)", flexShrink:0 }}>{svc.price} CKB</span>
+                </div>
+                <p style={{ fontSize:11, color:"var(--muted)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginTop:1 }}>{svc.description}</p>
+              </div>
+              {active && <Loader2 size={11} className="anim-spin" style={{ color:"var(--green)", flexShrink:0 }} />}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* x402 protocol stepper */}
+      <div style={{ marginTop:"auto", padding:"14px 12px 0" }}>
+        <div style={{ borderRadius:12, padding:12, background:"var(--surface-2)", border:"1px solid var(--border)" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:12 }}>
+            <div style={{ width:16, height:16, borderRadius:4, background:"var(--green-dim)", border:"1px solid var(--green-ring)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <Activity size={9} style={{ color:"var(--green)" }} />
+            </div>
+            <span style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", color:"var(--subtle)" }}>x402 Protocol</span>
+          </div>
+          {STEPS.map((step, i) => {
+            const done   = payStep > i + 1;
+            const active = payStep === i + 1;
+            return (
+              <div key={i} style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"center" }}>
+                  <div style={{ width:20, height:20, borderRadius:6, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, background: done?"var(--green)": active?"var(--green-dim)":"transparent", border: active||done?"1px solid var(--green)":"1px solid var(--border)", transition:"all 0.3s", boxShadow: active?"0 0 10px var(--green-ring)":"none" }}>
+                    {done
+                      ? <CheckCircle2 size={11} style={{ color:"#fff" }} />
+                      : <span style={{ fontSize:9, fontFamily:"monospace", color:active?"var(--green)":"var(--subtle)", fontWeight:700 }}>{i+1}</span>
+                    }
+                  </div>
+                  {i < STEPS.length - 1 && (
+                    <div style={{ width:1, height:12, background:done?"var(--green)":"var(--border)", transition:"background 0.4s", margin:"3px 0" }} />
+                  )}
+                </div>
+                <div style={{ flex:1, paddingBottom: i < STEPS.length-1 ? 6 : 0 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:6, paddingTop:2 }}>
+                    <span style={{ fontSize:11, lineHeight:1.4, transition:"color 0.3s", color:done?"var(--text)": active?"var(--green)":"var(--muted)", fontWeight:active?600:400 }}>{step}</span>
+                    {active && <Loader2 size={9} className="anim-spin" style={{ color:"var(--green)", flexShrink:0 }} />}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      </main>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Feed ─── */
+function Feed({ payments, spent, balance }: { payments:Payment[]; spent:number; balance:number }) {
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%" }}>
+      <div style={{ padding:"12px 14px", borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+          <Activity size={13} style={{ color:"var(--muted)" }} />
+          <span style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", color:"var(--subtle)" }}>Live Payments</span>
+        </div>
+        {payments.length > 0 && <Badge variant="green">{payments.length} tx</Badge>}
+      </div>
+      <div style={{ flex:1, overflowY:"auto", padding:10, display:"flex", flexDirection:"column", gap:6 }}>
+        {payments.length === 0 ? (
+          <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:8, padding:"40px 0" }}>
+            <CircleDot size={24} style={{ color:"var(--border-hi)" }} />
+            <span style={{ fontSize:12, color:"var(--subtle)" }}>No payments yet</span>
+          </div>
+        ) : (
+          payments.map(p => (
+            <div key={p.id} className={p.fresh?"anim-flash anim-in":"anim-in"} style={{ borderRadius:10, padding:"10px 12px", transition:"border-color 0.6s, background 0.6s", background:p.fresh?"var(--green-dim)":"var(--surface-2)", border:`1px solid ${p.fresh?"var(--green)":"var(--border)"}`, boxShadow:p.fresh?"0 0 0 1px var(--green-ring)":"none" }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                  <div style={{ width:22, height:22, borderRadius:6, background:p.fresh?"var(--green-dim)":"var(--surface)", border:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"center", color:p.fresh?"var(--green)":"var(--muted)" }}>
+                    {SERVICE_ICONS[p.serviceId] ?? <Zap size={11} />}
+                  </div>
+                  <span style={{ fontSize:12, fontWeight:500, color:"var(--text)" }}>{p.serviceName}</span>
+                </div>
+                <span style={{ fontSize:11, fontFamily:"monospace", fontWeight:700, color:"var(--green)" }}>-{p.amount} CKB</span>
+              </div>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                <span style={{ fontSize:10, fontFamily:"monospace", color:"var(--muted)" }}>{shortHash(p.txHash)}</span>
+                <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                  <CheckCircle2 size={10} style={{ color:p.fresh?"var(--green)":"var(--subtle)" }} />
+                  <span style={{ fontSize:10, color:"var(--subtle)" }}>{new Date(p.ts).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"})}</span>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+      {payments.length > 0 && (
+        <div style={{ padding:"10px 14px", borderTop:"1px solid var(--border)", flexShrink:0 }}>
+          {[
+            { label:"Transactions", value:String(payments.length), green:false },
+            { label:"Total spent",  value:formatCKB(spent),        green:true  },
+            { label:"Remaining",    value:formatCKB(balance),      green:false },
+          ].map(r => (
+            <div key={r.label} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"3px 0" }}>
+              <span style={{ fontSize:11, color:"var(--muted)" }}>{r.label}</span>
+              <span style={{ fontSize:11, fontFamily:"monospace", fontWeight:600, color:r.green?"var(--green)":"var(--text)" }}>{r.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Simple markdown renderer ─── */
+function renderMd(text: string) {
+  return text.split("\n").map((line, i) => {
+    const parts = line.split(/(\*\*[^*]+\*\*)/g).map((p, j) =>
+      p.startsWith("**") && p.endsWith("**")
+        ? <strong key={j} style={{ color:"var(--text)", fontWeight:700 }}>{p.slice(2,-2)}</strong>
+        : p
+    );
+    const rendered = parts.map((p, j) => {
+      if (typeof p !== "string") return p;
+      const subs = p.split(/(_[^_]+_)/g).map((s, k) =>
+        s.startsWith("_") && s.endsWith("_")
+          ? <em key={k} style={{ color:"var(--muted)", fontStyle:"italic" }}>{s.slice(1,-1)}</em>
+          : s
+      );
+      return <span key={j}>{subs}</span>;
+    });
+    return <span key={i}>{rendered}{i < text.split("\n").length-1 ? "\n" : ""}</span>;
+  });
+}
+
+/* ─── Message item ─── */
+function MsgItem({ m, running }: { m:Msg; running:boolean }) {
+  return (
+    <div className="anim-up">
+      {m.role==="user" && (
+        <div style={{ display:"flex", justifyContent:"flex-end" }}>
+          <div style={{ maxWidth:"75%", background:"var(--green)", color:"#fff", borderRadius:"16px 16px 4px 16px", padding:"10px 14px", fontSize:13, lineHeight:1.5, fontWeight:500 }}>{m.text}</div>
+        </div>
+      )}
+      {m.role==="agent" && (
+        <div style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
+          <div style={{ width:26, height:26, borderRadius:8, flexShrink:0, marginTop:2, background:"var(--green-dim)", border:"1px solid var(--green-ring)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <Bot size={13} style={{ color:"var(--green)" }} />
+          </div>
+          <div style={{ maxWidth:"80%", background:"var(--surface)", border:"1px solid var(--border)", borderRadius:"4px 16px 16px 16px", padding:"10px 14px", fontSize:13, lineHeight:1.6, color:"var(--text)", whiteSpace:"pre-wrap", boxShadow:"var(--shadow)" }}>{renderMd(m.text)}</div>
+        </div>
+      )}
+      {m.role==="status" && (
+        <div style={{ display:"flex", justifyContent:"center" }}>
+          <span style={{ fontSize:11, padding:"4px 12px", borderRadius:99, background:"var(--surface-2)", border:"1px solid var(--border)", color:"var(--muted)", display:"flex", alignItems:"center", gap:6 }}>
+            {running && <Loader2 size={10} className="anim-spin" style={{ color:"var(--green)" }} />}
+            {m.text}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Main ─── */
+export default function Home() {
+  const [theme, setTheme]         = useState<"dark"|"light">("dark");
+  const [balance, setBalance]     = useState(10.0);
+  const [spent, setSpent]         = useState(0);
+  const [payments, setPayments]   = useState<Payment[]>([]);
+  const [msgs, setMsgs]           = useState<Msg[]>([]);
+  const [input, setInput]         = useState("");
+  const [running, setRunning]     = useState(false);
+  const [activeId, setActiveId]   = useState<string|null>(null);
+  const [sideOpen, setSideOpen]   = useState(false);
+  const [feedOpen, setFeedOpen]   = useState(false);
+  const [payStep, setPayStep]     = useState(0);
+  const [toast, setToast]         = useState<{ serviceName:string; amount:number; txHash:string }|null>(null);
+  const [autopilot, setAutopilot] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [autoCount, setAutoCount] = useState(0);
+
+  const bottomRef      = useRef<HTMLDivElement>(null);
+  const inputRef       = useRef<HTMLInputElement>(null);
+  const runningRef     = useRef(false);
+  const autopilotRef   = useRef(false);
+  const autoIdxRef     = useRef(0);
+  const pendingRef     = useRef<ReturnType<typeof setTimeout>|null>(null);
+  const tickRef        = useRef<ReturnType<typeof setInterval>|null>(null);
+  const scheduleRef    = useRef<(()=>void)|undefined>(undefined);
+
+  useEffect(() => {
+    const saved = (localStorage.getItem("f402-theme") as "dark"|"light") || "dark";
+    setTheme(saved);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("light", theme==="light");
+    localStorage.setItem("f402-theme", theme);
+  }, [theme]);
+
+  useEffect(() => {
+    fetch("/api/fiber/balance").then(r=>r.json()).then(d=>setBalance(d.balance)).catch(()=>{});
+  }, []);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior:"smooth" });
+  }, [msgs]);
+
+  const pushMsg = useCallback((role: Msg["role"], text: string) => {
+    setMsgs(p => [...p, { id:Math.random().toString(36).slice(2), role, text }]);
+  }, []);
+
+  const pushPayment = useCallback((svc: typeof SERVICES[0], txHash: string) => {
+    const p: Payment = { id:Math.random().toString(36).slice(2), serviceId:svc.id, serviceName:svc.name, amount:svc.price, txHash, ts:Date.now(), fresh:true };
+    setPayments(prev => [p, ...prev].slice(0, 30));
+    setBalance(b => parseFloat((b - svc.price).toFixed(6)));
+    setSpent(s => parseFloat((s + svc.price).toFixed(6)));
+    setTimeout(() => setPayments(prev => prev.map(x => x.id===p.id ? {...x, fresh:false} : x)), 2000);
+  }, []);
+
+  const runTask = useCallback(async (task: string) => {
+    if (runningRef.current) return;
+    runningRef.current = true;
+    setRunning(true); setSideOpen(false); setFeedOpen(false);
+    pushMsg("user", task);
+    pushMsg("status", "Connecting to marketplace…");
+    try {
+      const res = await fetch("/api/agent/run", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ task }) });
+      if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.error||`HTTP ${res.status}`); }
+      if (!res.body) throw new Error("No stream");
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        for (const line of dec.decode(value).split("\n")) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const d = JSON.parse(line.slice(6));
+            if (d.type==="thinking") {
+              pushMsg("status", d.content);
+            } else if (d.type==="paying") {
+              const s = SERVICES.find(x => x.id===d.serviceId);
+              setActiveId(d.serviceId);
+              setPayStep(1);
+              setTimeout(() => setPayStep(2), 350);
+              setTimeout(() => setPayStep(3), 750);
+              if (s) pushMsg("status", `Paying ${formatCKB(s.price)} → ${s.name}`);
+            } else if (d.type==="paid") {
+              const s = SERVICES.find(x => x.id===d.serviceId);
+              setPayStep(4);
+              if (s) {
+                pushPayment(s, d.txHash);
+                setToast({ serviceName:s.name, amount:s.price, txHash:d.txHash });
+                setTimeout(() => setToast(null), 2400);
+              }
+              setTimeout(() => { setActiveId(null); setPayStep(0); }, 1200);
+              pushMsg("status", `Confirmed · ${shortHash(d.txHash)}`);
+            } else if (d.type==="result") {
+              pushMsg("agent", d.content);
+            } else if (d.type==="error") {
+              pushMsg("status", `⚠ ${d.content}`);
+            }
+          } catch {}
+        }
+      }
+    } catch(e) {
+      pushMsg("status", e instanceof Error ? `⚠ ${e.message}` : "Something went wrong");
+    } finally {
+      runningRef.current = false;
+      setRunning(false); setActiveId(null);
+      inputRef.current?.focus();
+      if (autopilotRef.current) scheduleRef.current?.();
+    }
+  }, [pushMsg, pushPayment]);
+
+  // Schedule next autopilot task after a delay
+  const scheduleNext = useCallback(() => {
+    const DELAY = 12;
+    setCountdown(DELAY);
+    if (tickRef.current) clearInterval(tickRef.current);
+    tickRef.current = setInterval(() => setCountdown(c => Math.max(0, c - 1)), 1000);
+    if (pendingRef.current) clearTimeout(pendingRef.current);
+    pendingRef.current = setTimeout(() => {
+      if (tickRef.current) clearInterval(tickRef.current);
+      if (!autopilotRef.current) return;
+      const task = AUTOPILOT_TASKS[autoIdxRef.current % AUTOPILOT_TASKS.length];
+      autoIdxRef.current++;
+      setAutoCount(c => c + 1);
+      runTask(task);
+    }, DELAY * 1000);
+  }, [runTask]);
+
+  useEffect(() => { scheduleRef.current = scheduleNext; }, [scheduleNext]);
+
+  const toggleAutopilot = useCallback(() => {
+    if (autopilotRef.current) {
+      autopilotRef.current = false;
+      setAutopilot(false);
+      if (pendingRef.current) clearTimeout(pendingRef.current);
+      if (tickRef.current) clearInterval(tickRef.current);
+      setCountdown(0);
+    } else {
+      autopilotRef.current = true;
+      setAutopilot(true);
+      setAutoCount(1);
+      autoIdxRef.current = 1;
+      runTask(AUTOPILOT_TASKS[0]);
+    }
+  }, [runTask]);
+
+  const run = useCallback(() => {
+    if (!input.trim() || runningRef.current) return;
+    const task = input.trim();
+    setInput("");
+    runTask(task);
+  }, [input, runTask]);
+
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+
+  return (
+    <div style={{ height:isMobile?"auto":"100vh", minHeight:"100vh", background:"var(--bg)", display:"flex", flexDirection:"column" }}>
+      <style>{`
+        @keyframes toastPop {
+          0%   { opacity:0; transform:scale(0.6); }
+          15%  { opacity:1; transform:scale(1.04); }
+          25%  { transform:scale(1); }
+          75%  { opacity:1; transform:scale(1); }
+          100% { opacity:0; transform:scale(0.96); }
+        }
+        @keyframes autoPulse {
+          0%,100% { box-shadow:0 0 0 0 rgba(34,197,94,0.5); }
+          50%     { box-shadow:0 0 0 5px rgba(34,197,94,0); }
+        }
+      `}</style>
+      <PaymentToast toast={toast} />
+
+      {/* ── NAV ── */}
+      <nav style={{ flexShrink:0, borderBottom:"1px solid var(--border)", background:"var(--surface)", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 16px", height:49, position:"sticky", top:0, zIndex:50 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <div style={{ width:28, height:28, borderRadius:8, background:"var(--green)", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 0 14px var(--green-ring)", flexShrink:0 }}>
+            <Zap size={14} color="#fff" fill="#fff" />
+          </div>
+          <span style={{ fontSize:14, fontWeight:700, color:"var(--text)", letterSpacing:"-0.01em" }}>Fiber-402</span>
+          <Badge variant="default" className="text-[10px] hidden sm:flex">CKB · Fiber Network</Badge>
+        </div>
+
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          {/* Desktop stats */}
+          <div className="hidden sm:flex" style={{ alignItems:"center", gap:8, fontFamily:"monospace", fontSize:12 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+              <div className="anim-green-pulse" style={{ width:7, height:7, borderRadius:"50%", background:"var(--green)", boxShadow:"0 0 6px var(--green)" }} />
+              <span style={{ color:"var(--muted)" }}>Node live</span>
+            </div>
+            <div style={{ width:1, height:16, background:"var(--border)" }} />
+            <Wallet size={12} style={{ color:"var(--green)" }} />
+            <span style={{ color:"var(--muted)" }}>Balance</span>
+            <span style={{ color:"var(--text)", fontWeight:700 }}>{formatCKB(balance)}</span>
+            <span style={{ color:"var(--subtle)" }}>·</span>
+            <span style={{ color:"var(--muted)" }}>Spent</span>
+            <span style={{ color:"var(--green)", fontWeight:700 }}>{formatCKB(spent)}</span>
+            <div style={{ width:1, height:16, background:"var(--border)" }} />
+          </div>
+
+          {/* Autopilot toggle */}
+          <button onClick={toggleAutopilot} style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 11px", borderRadius:8, cursor:"pointer", border:autopilot?"1px solid var(--green)":"1px solid var(--border)", background:autopilot?"var(--green-dim)":"var(--surface-2)", color:autopilot?"var(--green)":"var(--muted)", fontSize:11, fontWeight:600, transition:"all 0.2s", animation:autopilot?"autoPulse 2s ease infinite":"none", outline:"none" }}>
+            {autopilot
+              ? <><Square size={10} fill="currentColor" /><span>Stop{countdown>0?` · ${countdown}s`:""}</span></>
+              : <><Play  size={10} fill="currentColor" /><span className="hidden sm:inline">Autopilot</span></>
+            }
+          </button>
+
+          {/* Mobile balance */}
+          <div className="flex sm:hidden" style={{ fontFamily:"monospace", fontSize:12, color:"var(--green)", fontWeight:700 }}>
+            {formatCKB(balance)}
+          </div>
+
+          {/* Mobile drawers */}
+          <div className="flex sm:hidden" style={{ gap:4 }}>
+            <Button variant="ghost" size="icon" onClick={()=>{ setFeedOpen(false); setSideOpen(v=>!v); }}>
+              {sideOpen ? <X size={15} style={{color:"var(--muted)"}} /> : <Menu size={15} style={{color:"var(--muted)"}} />}
+            </Button>
+            <Button variant="ghost" size="icon" onClick={()=>{ setSideOpen(false); setFeedOpen(v=>!v); }} style={{ position:"relative" }}>
+              <ReceiptText size={15} style={{ color:payments.length>0?"var(--green)":"var(--muted)" }} />
+              {payments.length>0 && <span style={{ position:"absolute", top:6, right:6, width:5, height:5, borderRadius:"50%", background:"var(--green)" }} />}
+            </Button>
+          </div>
+
+          <Button variant="ghost" size="icon" onClick={()=>setTheme(t=>t==="dark"?"light":"dark")}>
+            {theme==="dark" ? <Sun size={14} style={{color:"var(--muted)"}} /> : <Moon size={14} style={{color:"var(--muted)"}} />}
+          </Button>
+        </div>
+      </nav>
+
+      {/* ── AUTOPILOT BANNER ── */}
+      {autopilot && (
+        <div className="anim-slide-up" style={{ flexShrink:0, background:"var(--green-dim)", borderBottom:"1px solid var(--green-ring)", padding:"8px 16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <Cpu size={12} style={{ color:"var(--green)" }} />
+            <span style={{ fontSize:11, fontWeight:700, color:"var(--green)", letterSpacing:"0.04em" }}>AUTOPILOT RUNNING</span>
+            <span style={{ fontSize:11, color:"var(--muted)" }}>— agent is operating autonomously, spending real CKB on paid services</span>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
+            <span style={{ fontSize:11, fontFamily:"monospace", color:"var(--subtle)" }}>{autoCount} task{autoCount!==1?"s":""} run</span>
+            {!running && countdown > 0 && (
+              <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                <RefreshCw size={10} style={{ color:"var(--muted)" }} className="anim-spin" />
+                <span style={{ fontSize:11, color:"var(--muted)", fontFamily:"monospace" }}>next in {countdown}s</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── MOBILE DRAWERS ── */}
+      {sideOpen && (
+        <div className="flex sm:hidden anim-slide-up" style={{ background:"var(--surface)", borderBottom:"1px solid var(--border)", maxHeight:"55vh", overflow:"hidden" }}>
+          <Sidebar activeId={activeId} payStep={payStep} />
+        </div>
+      )}
+      {feedOpen && (
+        <div className="flex sm:hidden anim-slide-up" style={{ background:"var(--surface)", borderBottom:"1px solid var(--border)", maxHeight:"60vh", overflow:"hidden", width:"100%" }}>
+          <Feed payments={payments} spent={spent} balance={balance} />
+        </div>
+      )}
+
+      {/* ── BODY ── */}
+      <div style={{ flex:1, display:"flex", overflow:"hidden", minHeight:0 }}>
+
+        {/* Left sidebar */}
+        <aside className="hidden sm:flex" style={{ width:252, flexShrink:0, borderRight:"1px solid var(--border)", background:"var(--surface)", overflow:"hidden" }}>
+          <div style={{ width:"100%", overflowY:"auto" }}>
+            <Sidebar activeId={activeId} payStep={payStep} />
+          </div>
+        </aside>
+
+        {/* Center chat */}
+        <main style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
+          <div style={{ flex:1, overflowY:"auto", padding:"20px", display:"flex", flexDirection:"column", gap:10 }}>
+            {msgs.length === 0 ? (
+              <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:24, textAlign:"center", padding:"40px 0" }}>
+                <div>
+                  <div style={{ width:52, height:52, borderRadius:16, margin:"0 auto 14px", background:"var(--green-dim)", border:"1px solid var(--green-ring)", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 0 32px var(--green-glow)" }}>
+                    <Zap size={24} style={{ color:"var(--green)" }} fill="var(--green)" />
+                  </div>
+                  <h2 style={{ fontSize:16, fontWeight:700, color:"var(--text)", marginBottom:8, letterSpacing:"-0.02em" }}>Fiber-402 Agent</h2>
+                  <p style={{ fontSize:13, color:"var(--muted)", maxWidth:320, lineHeight:1.7, margin:"0 auto" }}>An AI agent with its own wallet. It autonomously pays for on-chain data using CKB Fiber micropayments — no human approval needed.</p>
+                </div>
+                <div style={{ width:"100%", maxWidth:400, display:"flex", flexDirection:"column", gap:8 }}>
+                  <p style={{ fontSize:11, color:"var(--subtle)", marginBottom:2 }}>Try an example or let it run itself</p>
+                  {EXAMPLES.map(e => (
+                    <button key={e} onClick={()=>{ setInput(e); inputRef.current?.focus(); }}
+                      style={{ textAlign:"left", fontSize:13, padding:"10px 14px", borderRadius:10, cursor:"pointer", transition:"all 0.15s", background:"var(--surface)", border:"1px solid var(--border)", color:"var(--muted)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, boxShadow:"var(--shadow)" }}
+                      onMouseEnter={ev=>{ ev.currentTarget.style.borderColor="var(--green)"; ev.currentTarget.style.color="var(--text)"; }}
+                      onMouseLeave={ev=>{ ev.currentTarget.style.borderColor="var(--border)"; ev.currentTarget.style.color="var(--muted)"; }}
+                    >
+                      <span>{e}</span>
+                      <ArrowUpRight size={13} style={{ flexShrink:0, opacity:0.4 }} />
+                    </button>
+                  ))}
+                  {/* Autopilot CTA */}
+                  <button onClick={toggleAutopilot}
+                    style={{ textAlign:"left", fontSize:13, padding:"12px 14px", borderRadius:10, cursor:"pointer", transition:"all 0.15s", background:"var(--green-dim)", border:"1px solid var(--green-ring)", color:"var(--green)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}
+                    onMouseEnter={ev=>{ ev.currentTarget.style.background="rgba(34,197,94,0.12)"; }}
+                    onMouseLeave={ev=>{ ev.currentTarget.style.background="var(--green-dim)"; }}
+                  >
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <Cpu size={14} />
+                      <div>
+                        <div style={{ fontWeight:600 }}>Start Autopilot</div>
+                        <div style={{ fontSize:11, color:"var(--muted)", marginTop:1 }}>Watch the agent spend its own CKB autonomously</div>
+                      </div>
+                    </div>
+                    <Play size={14} fill="currentColor" style={{ flexShrink:0, opacity:0.7 }} />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              msgs.map(m => <MsgItem key={m.id} m={m} running={running} />)
+            )}
+            <div ref={bottomRef} />
+          </div>
+
+          {/* Input bar */}
+          <div style={{ flexShrink:0, padding:"12px 20px 14px", borderTop:"1px solid var(--border)", background:"var(--surface)" }}>
+            <div style={{ display:"flex", gap:8 }}>
+              <Input ref={inputRef} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&run()} placeholder="Give the agent a task…" disabled={running} className="flex-1" />
+              <Button onClick={run} disabled={running||!input.trim()}>
+                {running ? <><Loader2 size={13} className="anim-spin" />Running</> : <><SendHorizonal size={13}/>Run</>}
+              </Button>
+            </div>
+            <p style={{ fontSize:11, color:"var(--subtle)", textAlign:"center", marginTop:8 }}>Claude · CKB Fiber Network micropayments</p>
+          </div>
+        </main>
+
+        {/* Right feed */}
+        <aside className="hidden sm:flex" style={{ width:268, flexShrink:0, borderLeft:"1px solid var(--border)", background:"var(--surface)", overflow:"hidden" }}>
+          <div style={{ width:"100%", height:"100%", display:"flex", flexDirection:"column" }}>
+            <Feed payments={payments} spent={spent} balance={balance} />
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }
