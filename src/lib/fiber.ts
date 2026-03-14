@@ -24,7 +24,7 @@ export interface PaymentResult {
 }
 
 const FIBER_RPC = process.env.FIBER_NODE_RPC_URL || "http://127.0.0.1:8227";
-const CKB_SHANNONS = 100_000_000n;
+const CKB_SHANNONS = BigInt(100_000_000);
 
 // ─── JSON-RPC helper ──────────────────────────────────────────────────────────
 
@@ -99,7 +99,7 @@ export async function getBalance(): Promise<number> {
     const channels = result?.channels ?? [];
     const totalShannons = channels
       .filter((c) => c.status === "Open")
-      .reduce((sum, c) => sum + BigInt(c.local_balance), 0n);
+      .reduce((sum, c) => sum + BigInt(c.local_balance), BigInt(0));
     return Number(totalShannons) / Number(CKB_SHANNONS);
   } catch {
     return mockBalance;
