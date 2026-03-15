@@ -1,136 +1,213 @@
 # Fiber-402
 
-> The missing payment layer for AI agents — built on CKB Fiber Network.
+**The payment layer the internet forgot to build. Now running on CKB Fiber Network.**
+
+Live demo: [fiber-402.vercel.app](https://fiber-402.vercel.app)
 
 ---
 
-## The Problem
+## The Internet Has Had a Broken Payment Code for 30 Years
 
-The internet has a billing problem that nobody noticed until AI agents arrived.
+```
+HTTP 402 - Payment Required
+```
 
-Every API on the internet assumes a human is paying. You need an email, a credit card, a subscription plan, an API key. It takes minutes to set up and costs at minimum $5-10/month — even if you only need $0.001 worth of data.
+Every browser, every server, every API in the world supports this status code. It was defined in 1991. The idea was simple: a server says "pay me first", the client pays, and gets access. It was never implemented, because the internet never built what goes behind it.
 
-AI agents can't sign up for accounts. They can't enter credit cards. They just need data, right now, for fractions of a cent. The entire billing infrastructure of the internet is incompatible with how AI agents work.
-
-**This is the problem Fiber-402 solves.**
+So instead, we got accounts. Subscriptions. Credit cards. Monthly plans.
 
 ---
 
-## The Solution
+## Africa Already Showed Us a Better Model
 
-In 1991, when HTTP was invented, engineers included a status code called `402 Payment Required`. The idea: a server could say "pay me first", the client would pay, and get access. It was never implemented — because there was no way for software to pay software automatically.
+MTN, Airtel, and Glo did not sell subscriptions. They sold airtime. You load what you need, you use what you load. Showmax tried the Netflix model in Nigeria. It struggled. Flex pricing saved it.
 
-In 2025, Coinbase revived this idea with the **x402 protocol**, using USDC on Base (Ethereum). Great idea. Wrong payment rail — $0.01 minimum fees make $0.001 micropayments economically impossible.
+People do not want to pay for what they might use. They want to pay for what they actually use. Per minute. Per MB. Per call.
 
-**Fiber-402 implements x402 on CKB's Fiber Network** — a Lightning-like payment channel system where:
-- Payments are **instant** (milliseconds)
-- Fees are **zero** inside a channel
-- Micropayments of **0.001 CKB** are completely viable
+The Silicon Valley subscription model is a Western assumption. The rest of the world already moved past it.
 
-Now AI agents can pay for exactly what they use, autonomously, in real time.
+**Now the internet needs to catch up.**
+
+---
+
+## AI Agents Are About to Break the Old Model Entirely
+
+An AI agent can browse, call APIs, analyze data, and take actions without any human. But it cannot open a bank account. It cannot enter a credit card. It cannot approve a monthly subscription.
+
+There are already millions of AI agents making billions of API calls. That number doubles every few months. The payment infrastructure for this does not exist.
+
+**Fiber-402 builds it.**
 
 ---
 
 ## How It Works
 
 ```
-1. Agent requests a resource
-   GET /api/ckb-price
+1.  Agent requests a resource
+    GET /api/market-data
 
-2. Server responds with 402
-   HTTP 402 Payment Required
-   { "amount": "0.001", "asset": "CKB", "invoice": "lnbc..." }
+2.  Server responds: payment required
+    HTTP 402
+    { "invoice": "lnckb1...", "amount": "0.001", "asset": "CKB" }
 
-3. Agent pays automatically via Fiber channel
-   (instant, no human needed)
+3.  Agent pays instantly via Fiber channel
+    sendPayment(invoice)  ->  ~340ms
 
-4. Agent retries with payment proof
-   GET /api/ckb-price
-   X-Payment: <signed proof>
+4.  Agent retries with payment proof
+    GET /api/market-data
+    X-Fiber-Payment: <invoice>
 
-5. Server verifies and responds
-   HTTP 200 OK
-   { "price": "$0.012" }
+5.  Server verifies and responds
+    HTTP 200 OK
+    { "price": "$0.0124", "market_cap": "$1.07B" }
 ```
 
-Total time: under 1 second. No accounts. No subscriptions. No humans.
+No accounts. No subscriptions. No humans in the loop.
 
 ---
 
-## Live Demo
+## Using the App
 
-Fiber-402 ships with a live marketplace of 4 real services — all gated behind 402 payment walls:
+**Try it now at [fiber-402.vercel.app](https://fiber-402.vercel.app)**
 
-| Service | What it does | Price |
+When you open the app, a personal demo wallet is automatically created for you in your browser. It starts with 10 CKB. No signup, no wallet extension, no setup.
+
+**Step 1 - Ask the agent anything**
+
+Click one of the example prompts or type your own question. The agent decides which services to call, pays for them automatically, and returns a full answer.
+
+```
+"What is CKB trading at right now?"
+"Give me a full network health report"
+"How active is the CKB blockchain today?"
+```
+
+**Step 2 - Watch the payment happen**
+
+As the agent works, you will see:
+
+- The sidebar steps light up: Request - 402 - Pay - Unlock
+- A full-screen payment flash showing the CKB amount and transaction hash
+- The live payment feed on the right updating in real time
+- Your wallet balance in the nav decreasing with each payment
+
+**Step 3 - Start Autopilot**
+
+Hit the Autopilot button and the agent runs itself every 12 seconds. It picks tasks, calls services, pays for data, and reports results with zero human input. Your balance drains in real time. This is what autonomous machine payments look like.
+
+**Step 4 - Refill and repeat**
+
+If your balance runs low, hit "refill to 10 CKB" under your wallet card and keep going.
+
+---
+
+## 4 Live Services (all gated behind HTTP 402)
+
+| Service | Cost | What it does |
 |---|---|---|
-| CKB Oracle | Real-time CKB price + market data | 0.001 CKB |
-| AI Summarizer | Claude summarizes any URL | 0.010 CKB |
-| Chain Analytics | On-chain stats for any CKB address | 0.005 CKB |
-| Fiber Stats | Live Fiber Network channel data | 0.002 CKB |
+| CKB Oracle | 0.001 CKB | Live price, market cap, 24h volume |
+| AI Summarizer | 0.010 CKB | Summarizes any topic using AI |
+| Chain Analytics | 0.005 CKB | Transactions, active addresses, hash rate |
+| Fiber Stats | 0.002 CKB | Network nodes, channels, total capacity |
 
-A built-in Claude AI agent is given a task and autonomously navigates the marketplace — hitting 402 walls, paying via Fiber, consuming the data, and reporting results. Every payment is visible on the live dashboard in real time.
+---
+
+## For Developers: Add x402 to Any API in 2 Lines
+
+```js
+import { require402 } from 'fiber-402';
+
+app.get('/my-data', require402({ amount: 0.01 }), handler);
+```
+
+That is all. Any AI agent that understands the x402 protocol will automatically pay and retry. No SDK required on the agent side. It is just HTTP.
+
+---
+
+## Why CKB Fiber Network
+
+| | USDC on Base (x402 original) | CKB Fiber (Fiber-402) |
+|---|---|---|
+| Min viable payment | ~$0.01 (gas fees) | $0.0001 (zero channel fees) |
+| Settlement speed | ~2 seconds | Milliseconds |
+| Channel setup | Per transaction | Once, then unlimited |
+| Works for $0.001 micropayments | No | Yes |
+
+Coinbase built x402 on Base. Great idea, wrong rail. Fiber is the only network where per-request micropayments are actually viable.
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        Fiber-402                             │
-├─────────────────┬───────────────────┬───────────────────────┤
-│   Server SDK    │   Payment Layer   │    Agent Layer         │
-│                 │                   │                        │
-│  payment-402    │  Fiber Node RPC   │  Claude Agent          │
-│  middleware     │  - new_invoice    │  Tools:                │
-│                 │  - send_payment   │  - http_get(url)       │
-│  Drop into any  │  - verify_payment │  - pay_invoice(req)    │
-│  Next.js /      │  - open_channel   │  - check_balance()     │
-│  Express app    │  - auto channel   │  - list_services()     │
-│                 │    management     │                        │
-└─────────────────┴───────────────────┴───────────────────────┘
++----------------------------------------------------------+
+|                       Fiber-402                          |
++------------------+------------------+--------------------+
+|   Server SDK     |  Payment Layer   |   Agent Layer      |
+|                  |                  |                    |
+|  require402()    |  Fiber Node RPC  |  AI Agent          |
+|  middleware      |  - new_invoice   |  Tools:            |
+|                  |  - send_payment  |  - fetch_service() |
+|  Drop into any   |  - verify_payment|  - list_services() |
+|  Next.js or      |  - open_channel  |  - check_balance() |
+|  Express app     |  mock fallback   |                    |
++------------------+------------------+--------------------+
+                           |
+               CKB Fiber Network
+               Instant - Feeless - Trustless
 ```
 
 ---
 
 ## Tech Stack
 
-- **AI**: Claude claude-sonnet-4-6 via Anthropic API (tool use for autonomous payments)
-- **Payments**: CKB Fiber Network (payment channels, invoices, instant settlement)
-- **Backend**: Next.js API routes (TypeScript)
-- **Frontend**: Next.js + Tailwind CSS + shadcn/ui
-- **On-chain**: CKB Fiber Node (channel funding, settlement)
+- Next.js 15 + TypeScript
+- AI agent with autonomous tool use and streaming SSE responses
+- CKB Fiber Network (real node running, 10,000 testnet CKB funded)
+- x402 middleware at `src/lib/payment-402.ts`
+- Graceful mock fallback when node is unreachable
 
 ---
 
-## Why Fiber Over USDC/Base
-
-| | USDC on Base (x402) | CKB on Fiber (Fiber-402) |
-|---|---|---|
-| Min viable payment | ~$0.01 (fees) | $0.0001 (zero channel fees) |
-| Settlement speed | ~2 seconds | Milliseconds |
-| Channel setup | Per transaction | Once, then unlimited payments |
-| Asset flexibility | USDC only | CKB + any UDT token |
-
----
-
-## Setup
+## Run Locally
 
 ```bash
-git clone https://github.com/yourusername/fiber-402
-cd fiber-402
+git clone https://github.com/David-Pjs/fiber402
+cd fiber402
 npm install
-cp .env.example .env
-# Add your ANTHROPIC_API_KEY
-# Add your FIBER_NODE_RPC_URL (when server is ready)
+```
+
+Create `.env.local`:
+
+```
+ANTHROPIC_API_KEY=your_key
+ANTHROPIC_BASE_URL=https://api.anthropic.com
+AI_MODEL=claude-haiku-4-5-20251001
+INTERNAL_BASE_URL=http://127.0.0.1:3000
+
+# Optional: connect a real Fiber node
+# FIBER_NODE_RPC_URL=http://127.0.0.1:8227
+# FIBER_CURRENCY=Fibt
+```
+
+```bash
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000)
 
+Without a Fiber node, all payments fall back to mock automatically. The UI looks and behaves identically.
+
 ---
 
-## Hackathon
+## The Vision
 
-Built for the **Claw & Order: CKB AI Agent Hackathon** (March 2026).
+Stripe did not invent payments. They made payments easy enough that every developer could use them. Within five years, most internet commerce ran through them.
 
-Fiber-402 is the CKB ecosystem's answer to x402 — bringing autonomous AI agent micropayments to the fastest, cheapest payment network in the CKB world.
+Fiber-402 does the same thing for machine-to-machine payments. Any developer can monetize any API. Any agent can pay for what it needs. No subscriptions. No accounts. Pay for exactly what you use.
+
+Africa proved this model wins. The programmable internet is next.
+
+---
+
+Built for the **Claw and Order: CKB AI Agent Hackathon**, March 2026.
