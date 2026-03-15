@@ -5,12 +5,24 @@ import {
   Sun, Moon, Zap, TrendingUp, Bot, BarChart2, Radio,
   CircleDot, CheckCircle2, Loader2, ArrowUpRight, SendHorizonal,
   Wallet, Activity, Menu, X, ReceiptText, Play, Square, Cpu, RefreshCw,
+  Globe, Network, Lock,
 } from "lucide-react";
 import { SERVICES } from "@/lib/services";
 import { formatCKB, shortHash } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+
+/* ─── Session wallet helpers ─── */
+function genSessionId(): string {
+  return Array.from({length:16}, ()=>"abcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(Math.random()*36)]).join('');
+}
+function sessionToAddr(id: string): string {
+  return `ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa${id.slice(0,8)}`;
+}
+function shortAddr(addr: string): string {
+  return addr.slice(0,10) + '...' + addr.slice(-6);
+}
 
 const SERVICE_ICONS: Record<string, React.ReactNode> = {
   "ckb-oracle":      <TrendingUp size={14} />,
@@ -20,19 +32,19 @@ const SERVICE_ICONS: Record<string, React.ReactNode> = {
 };
 
 const AUTOPILOT_TASKS = [
-  "Get the current CKB price and Fiber Network stats, then give a full network health brief",
-  "Fetch chain analytics and summarize the key on-chain metrics for CKB today",
-  "Get CKB price and chain analytics — give me a market and network combined report",
-  "Run Fiber stats and summarize the CKB ecosystem using real on-chain data",
+  "Get the CKB price, chain analytics, and Fiber Network stats - give me a complete ecosystem health report across all data sources",
+  "Check on-chain activity: transactions, active addresses, hash rate. Then summarize what it means for the CKB network right now",
+  "Pull the Fiber Network capacity and node count, then combine with the live CKB price for a full market + infrastructure brief",
+  "Run all available services and give me an investor-grade summary of the CKB blockchain ecosystem today",
 ];
 
 interface Payment { id:string; serviceId:string; serviceName:string; amount:number; txHash:string; ts:number; fresh:boolean; }
 interface Msg      { id:string; role:"user"|"agent"|"status"; text:string; }
 
 const EXAMPLES = [
-  "What is the current CKB price?",
-  "Summarize the Nervos CKB ecosystem",
-  "Show Fiber Network stats and chain analytics",
+  "What is CKB trading at right now? Include market cap and 24h volume",
+  "Give me a full network health report - price, chain metrics, and Fiber capacity",
+  "How active is the CKB blockchain today? Show on-chain transactions and analytics",
 ];
 
 /* ─── Payment Toast ─── */
@@ -250,6 +262,8 @@ export default function Home() {
   const [autopilot, setAutopilot] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [autoCount, setAutoCount] = useState(0);
+  const [sessionId, setSessionId] = useState("");
+  const [walletAddr, setWalletAddr] = useState("");
 
   const bottomRef      = useRef<HTMLDivElement>(null);
   const inputRef       = useRef<HTMLInputElement>(null);
@@ -271,8 +285,23 @@ export default function Home() {
   }, [theme]);
 
   useEffect(() => {
-    fetch("/api/fiber/balance").then(r=>r.json()).then(d=>setBalance(d.balance)).catch(()=>{});
+    // Session wallet: each visitor gets their own isolated wallet
+    let id = localStorage.getItem("f402-session");
+    if (!id) {
+      id = genSessionId();
+      localStorage.setItem("f402-session", id);
+    }
+    setSessionId(id);
+    setWalletAddr(sessionToAddr(id));
+    // Load persisted balance for this session
+    const saved = localStorage.getItem(`f402-bal-${id}`);
+    if (saved !== null) setBalance(parseFloat(saved));
   }, []);
+
+  // Persist balance changes per session
+  useEffect(() => {
+    if (sessionId) localStorage.setItem(`f402-bal-${sessionId}`, String(balance));
+  }, [balance, sessionId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior:"smooth" });
@@ -381,6 +410,14 @@ export default function Home() {
     }
   }, [runTask]);
 
+  const resetWallet = useCallback(() => {
+    setBalance(10.0);
+    setSpent(0);
+    setPayments([]);
+    setMsgs([]);
+    if (sessionId) localStorage.setItem(`f402-bal-${sessionId}`, "10");
+  }, [sessionId]);
+
   const run = useCallback(() => {
     if (!input.trim() || runningRef.current) return;
     const task = input.trim();
@@ -404,6 +441,16 @@ export default function Home() {
           0%,100% { box-shadow:0 0 0 0 rgba(34,197,94,0.5); }
           50%     { box-shadow:0 0 0 5px rgba(34,197,94,0); }
         }
+        @media (max-width: 600px) {
+          .hero-headline { font-size: 22px !important; }
+          .hero-pad { padding: 28px 16px 36px !important; }
+          .hero-sub { font-size: 12px !important; max-width: 100% !important; }
+          .flow-row { padding: 10px 12px !important; }
+          .flow-label { font-size: 11px !important; }
+          .flow-code { font-size: 10px !important; }
+          .example-btn { font-size: 12px !important; padding: 11px 13px !important; }
+          .autopilot-btn { padding: 12px 13px !important; }
+        }
       `}</style>
       <PaymentToast toast={toast} />
 
@@ -420,17 +467,25 @@ export default function Home() {
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
           {/* Desktop stats */}
           <div className="hidden sm:flex" style={{ alignItems:"center", gap:8, fontFamily:"monospace", fontSize:12 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-              <div className="anim-green-pulse" style={{ width:7, height:7, borderRadius:"50%", background:"var(--green)", boxShadow:"0 0 6px var(--green)" }} />
-              <span style={{ color:"var(--muted)" }}>Node live</span>
-            </div>
-            <div style={{ width:1, height:16, background:"var(--border)" }} />
+            {/* Wallet address */}
+            {walletAddr && (
+              <>
+                <div style={{ display:"flex", alignItems:"center", gap:6, background:"var(--surface-2)", border:"1px solid var(--border)", borderRadius:8, padding:"3px 10px" }}>
+                  <div className="anim-green-pulse" style={{ width:6, height:6, borderRadius:"50%", background:"var(--green)", flexShrink:0 }} />
+                  <span style={{ fontSize:10, color:"var(--muted)", letterSpacing:"0.02em" }}>{shortAddr(walletAddr)}</span>
+                </div>
+                <div style={{ width:1, height:16, background:"var(--border)" }} />
+              </>
+            )}
             <Wallet size={12} style={{ color:"var(--green)" }} />
-            <span style={{ color:"var(--muted)" }}>Balance</span>
             <span style={{ color:"var(--text)", fontWeight:700 }}>{formatCKB(balance)}</span>
             <span style={{ color:"var(--subtle)" }}>·</span>
-            <span style={{ color:"var(--muted)" }}>Spent</span>
+            <span style={{ color:"var(--muted)" }}>spent</span>
             <span style={{ color:"var(--green)", fontWeight:700 }}>{formatCKB(spent)}</span>
+            <div style={{ width:1, height:16, background:"var(--border)" }} />
+            <button onClick={resetWallet} title="Reset wallet to 10 CKB" style={{ fontSize:10, color:"var(--subtle)", background:"none", border:"none", cursor:"pointer", padding:"2px 4px", borderRadius:4, transition:"color 0.15s" }} onMouseEnter={e=>(e.currentTarget.style.color="var(--muted)")} onMouseLeave={e=>(e.currentTarget.style.color="var(--subtle)")}>
+              reset
+            </button>
             <div style={{ width:1, height:16, background:"var(--border)" }} />
           </div>
 
@@ -442,9 +497,10 @@ export default function Home() {
             }
           </button>
 
-          {/* Mobile balance */}
-          <div className="flex sm:hidden" style={{ fontFamily:"monospace", fontSize:12, color:"var(--green)", fontWeight:700 }}>
-            {formatCKB(balance)}
+          {/* Mobile balance + reset */}
+          <div className="flex sm:hidden" style={{ alignItems:"center", gap:6 }}>
+            <span style={{ fontFamily:"monospace", fontSize:12, color:"var(--green)", fontWeight:700 }}>{formatCKB(balance)}</span>
+            <button onClick={resetWallet} style={{ fontSize:9, color:"var(--subtle)", background:"none", border:"1px solid var(--border)", borderRadius:4, cursor:"pointer", padding:"2px 5px" }}>refill</button>
           </div>
 
           {/* Mobile drawers */}
@@ -470,7 +526,7 @@ export default function Home() {
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             <Cpu size={12} style={{ color:"var(--green)" }} />
             <span style={{ fontSize:11, fontWeight:700, color:"var(--green)", letterSpacing:"0.04em" }}>AUTOPILOT RUNNING</span>
-            <span style={{ fontSize:11, color:"var(--muted)" }}>— agent is operating autonomously, spending real CKB on paid services</span>
+            <span style={{ fontSize:11, color:"var(--muted)" }}>- agent is operating autonomously, spending real CKB on paid services</span>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
             <span style={{ fontSize:11, fontFamily:"monospace", color:"var(--subtle)" }}>{autoCount} task{autoCount!==1?"s":""} run</span>
@@ -508,47 +564,129 @@ export default function Home() {
 
         {/* Center chat */}
         <main style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
-          <div style={{ flex:1, overflowY:"auto", padding:"20px", display:"flex", flexDirection:"column", gap:10 }}>
+          <div style={{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column" }}>
             {msgs.length === 0 ? (
-              <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:24, textAlign:"center", padding:"40px 0" }}>
-                <div>
-                  <div style={{ width:52, height:52, borderRadius:16, margin:"0 auto 14px", background:"var(--green-dim)", border:"1px solid var(--green-ring)", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 0 32px var(--green-glow)" }}>
-                    <Zap size={24} style={{ color:"var(--green)" }} fill="var(--green)" />
+              <div className="hero-pad" style={{ maxWidth:560, margin:"0 auto", width:"100%", padding:"48px 24px 48px" }}>
+
+                {/* ── HERO ── */}
+                <div style={{ textAlign:"center", marginBottom:40 }}>
+                  <div style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"5px 14px", borderRadius:99, background:"var(--green-dim)", border:"1px solid var(--green-ring)", marginBottom:24 }}>
+                    <div className="anim-green-pulse" style={{ width:6, height:6, borderRadius:"50%", background:"var(--green)", flexShrink:0 }} />
+                    <span style={{ fontSize:10, fontWeight:700, color:"var(--green)", letterSpacing:"0.1em", textTransform:"uppercase" }}>CKB Fiber Hackathon · Live Demo</span>
                   </div>
-                  <h2 style={{ fontSize:16, fontWeight:700, color:"var(--text)", marginBottom:8, letterSpacing:"-0.02em" }}>Fiber-402 Agent</h2>
-                  <p style={{ fontSize:13, color:"var(--muted)", maxWidth:320, lineHeight:1.7, margin:"0 auto" }}>An AI agent with its own wallet. It autonomously pays for on-chain data using CKB Fiber micropayments — no human approval needed.</p>
+
+                  <h1 className="hero-headline" style={{ fontSize:28, fontWeight:900, color:"var(--text)", lineHeight:1.2, letterSpacing:"-0.04em", marginBottom:14 }}>
+                    The internet forgot<br/>
+                    <span style={{ color:"var(--green)" }}>to build payments.</span>
+                  </h1>
+
+                  <p className="hero-sub" style={{ fontSize:13, color:"var(--muted)", lineHeight:1.8, maxWidth:400, margin:"0 auto 24px" }}>
+                    HTTP 402 existed since 1995. Every server supports it. No one ever implemented it. Fiber-402 does - for AI agents that pay autonomously, per request, with no human in the loop.
+                  </p>
+
+                  <div style={{ display:"inline-block", background:"var(--surface-2)", border:"1px solid var(--border)", borderRadius:10, padding:"12px 20px", textAlign:"left" }}>
+                    <div style={{ fontFamily:"monospace", fontSize:13, marginBottom:4 }}>
+                      <span style={{ color:"var(--subtle)" }}>HTTP/1.1 </span>
+                      <span style={{ color:"var(--green)", fontWeight:800 }}>402</span>
+                      <span style={{ color:"var(--text)", fontWeight:600 }}> Payment Required</span>
+                    </div>
+                    <div style={{ fontSize:10, color:"var(--subtle)", fontFamily:"monospace" }}>
+                      defined 1995 · never used · <span style={{ color:"var(--green)", fontWeight:700 }}>until now</span>
+                    </div>
+                  </div>
                 </div>
-                <div style={{ width:"100%", maxWidth:400, display:"flex", flexDirection:"column", gap:8 }}>
-                  <p style={{ fontSize:11, color:"var(--subtle)", marginBottom:2 }}>Try an example or let it run itself</p>
+
+                {/* ── HOW IT WORKS ── */}
+                <div style={{ marginBottom:36 }}>
+                  <p style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.12em", color:"var(--subtle)", textAlign:"center", marginBottom:14 }}>How it works</p>
+                  <div style={{ border:"1px solid var(--border)", borderRadius:12, overflow:"hidden" }}>
+                    {[
+                      { n:"01", label:"Agent requests a resource",          code:"GET /api/market-data",   accent:false },
+                      { n:"02", label:"Server responds: payment required",   code:"← 402 + Fiber invoice", accent:true  },
+                      { n:"03", label:"Agent pays instantly via Fiber",      code:"sendPayment()  ·  <1s", accent:true  },
+                      { n:"04", label:"Resource unlocked - zero humans",     code:"← 200 OK + data",      accent:false },
+                    ].map((row, i) => (
+                      <div key={i} className="flow-row" style={{ display:"flex", alignItems:"center", gap:14, padding:"12px 16px", borderBottom:i<3?"1px solid var(--border)":"none", background:row.accent?"rgba(34,197,94,0.04)":"var(--surface-2)" }}>
+                        <span style={{ fontSize:9, fontFamily:"monospace", fontWeight:800, color:"var(--border-hi)", width:16, flexShrink:0 }}>{row.n}</span>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div className="flow-label" style={{ fontSize:12, fontWeight:500, color:"var(--text)", marginBottom:2 }}>{row.label}</div>
+                          <code className="flow-code" style={{ fontSize:11, fontFamily:"monospace", color:row.accent?"var(--green)":"var(--muted)" }}>{row.code}</code>
+                        </div>
+                        {row.accent && <div style={{ width:5, height:5, borderRadius:"50%", background:"var(--green)", flexShrink:0, boxShadow:"0 0 6px var(--green)" }} />}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* ── YOUR WALLET CARD ── */}
+                {walletAddr && (
+                  <div style={{ marginBottom:28, borderRadius:12, border:"1px solid var(--green-ring)", background:"var(--green-dim)", padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                      <div style={{ width:32, height:32, borderRadius:9, background:"rgba(34,197,94,0.15)", border:"1px solid var(--green-ring)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                        <Wallet size={14} style={{ color:"var(--green)" }} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize:11, fontWeight:700, color:"var(--green)", marginBottom:3 }}>Your Demo Wallet</div>
+                        <div style={{ fontSize:10, fontFamily:"monospace", color:"var(--muted)", letterSpacing:"0.02em" }}>{shortAddr(walletAddr)}</div>
+                      </div>
+                    </div>
+                    <div style={{ textAlign:"right", flexShrink:0 }}>
+                      <div style={{ fontSize:16, fontWeight:800, fontFamily:"monospace", color:"var(--green)", letterSpacing:"-0.02em" }}>{formatCKB(balance)}</div>
+                      <button onClick={resetWallet} style={{ fontSize:10, color:"var(--muted)", background:"none", border:"none", cursor:"pointer", padding:0, marginTop:2 }} onMouseEnter={e=>(e.currentTarget.style.color="var(--text)")} onMouseLeave={e=>(e.currentTarget.style.color="var(--muted)")}>
+                        refill to 10 CKB
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── DIVIDER ── */}
+                <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
+                  <div style={{ flex:1, height:1, background:"var(--border)" }} />
+                  <span style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", color:"var(--subtle)", whiteSpace:"nowrap" }}>Try it - watch payments fire live</span>
+                  <div style={{ flex:1, height:1, background:"var(--border)" }} />
+                </div>
+
+                {/* ── EXAMPLES ── */}
+                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                   {EXAMPLES.map(e => (
-                    <button key={e} onClick={()=>{ setInput(e); inputRef.current?.focus(); }}
-                      style={{ textAlign:"left", fontSize:13, padding:"10px 14px", borderRadius:10, cursor:"pointer", transition:"all 0.15s", background:"var(--surface)", border:"1px solid var(--border)", color:"var(--muted)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, boxShadow:"var(--shadow)" }}
+                    <button key={e} onClick={()=>{ setInput(e); setTimeout(()=>{ if(e.trim()) runTask(e); }, 50); }}
+                      className="example-btn"
+                      style={{ textAlign:"left", fontSize:13, padding:"12px 16px", borderRadius:10, cursor:"pointer", transition:"all 0.15s", background:"var(--surface-2)", border:"1px solid var(--border)", color:"var(--muted)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}
                       onMouseEnter={ev=>{ ev.currentTarget.style.borderColor="var(--green)"; ev.currentTarget.style.color="var(--text)"; }}
                       onMouseLeave={ev=>{ ev.currentTarget.style.borderColor="var(--border)"; ev.currentTarget.style.color="var(--muted)"; }}
                     >
-                      <span>{e}</span>
-                      <ArrowUpRight size={13} style={{ flexShrink:0, opacity:0.4 }} />
+                      <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                        <Zap size={12} style={{ color:"var(--green)", flexShrink:0 }} />
+                        <span>{e}</span>
+                      </div>
+                      <ArrowUpRight size={13} style={{ flexShrink:0, opacity:0.35 }} />
                     </button>
                   ))}
-                  {/* Autopilot CTA */}
+
                   <button onClick={toggleAutopilot}
-                    style={{ textAlign:"left", fontSize:13, padding:"12px 14px", borderRadius:10, cursor:"pointer", transition:"all 0.15s", background:"var(--green-dim)", border:"1px solid var(--green-ring)", color:"var(--green)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}
-                    onMouseEnter={ev=>{ ev.currentTarget.style.background="rgba(34,197,94,0.12)"; }}
+                    className="autopilot-btn"
+                    style={{ padding:"14px 16px", borderRadius:10, cursor:"pointer", transition:"all 0.2s", background:"var(--green-dim)", border:"1px solid var(--green-ring)", color:"var(--green)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, marginTop:4 }}
+                    onMouseEnter={ev=>{ ev.currentTarget.style.background="rgba(34,197,94,0.13)"; }}
                     onMouseLeave={ev=>{ ev.currentTarget.style.background="var(--green-dim)"; }}
                   >
-                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                      <Cpu size={14} />
-                      <div>
-                        <div style={{ fontWeight:600 }}>Start Autopilot</div>
-                        <div style={{ fontSize:11, color:"var(--muted)", marginTop:1 }}>Watch the agent spend its own CKB autonomously</div>
+                    <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                      <div style={{ width:34, height:34, borderRadius:10, background:"rgba(34,197,94,0.15)", border:"1px solid var(--green-ring)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                        <Cpu size={15} />
+                      </div>
+                      <div style={{ textAlign:"left" }}>
+                        <div style={{ fontWeight:700, fontSize:13 }}>Start Autopilot</div>
+                        <div style={{ fontSize:11, color:"var(--muted)", marginTop:2 }}>Agent runs every 12s - pays real CKB, no human involved</div>
                       </div>
                     </div>
-                    <Play size={14} fill="currentColor" style={{ flexShrink:0, opacity:0.7 }} />
+                    <Play size={14} fill="currentColor" style={{ flexShrink:0, opacity:0.8 }} />
                   </button>
                 </div>
+
               </div>
             ) : (
-              msgs.map(m => <MsgItem key={m.id} m={m} running={running} />)
+              <div style={{ padding:"20px", display:"flex", flexDirection:"column", gap:10 }}>
+                {msgs.map(m => <MsgItem key={m.id} m={m} running={running} />)}
+              </div>
             )}
             <div ref={bottomRef} />
           </div>
@@ -556,12 +694,12 @@ export default function Home() {
           {/* Input bar */}
           <div style={{ flexShrink:0, padding:"12px 20px 14px", borderTop:"1px solid var(--border)", background:"var(--surface)" }}>
             <div style={{ display:"flex", gap:8 }}>
-              <Input ref={inputRef} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&run()} placeholder="Give the agent a task…" disabled={running} className="flex-1" />
+              <Input ref={inputRef} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&run()} placeholder="Ask anything - agent pays for data automatically…" disabled={running} className="flex-1" />
               <Button onClick={run} disabled={running||!input.trim()}>
                 {running ? <><Loader2 size={13} className="anim-spin" />Running</> : <><SendHorizonal size={13}/>Run</>}
               </Button>
             </div>
-            <p style={{ fontSize:11, color:"var(--subtle)", textAlign:"center", marginTop:8 }}>Claude · CKB Fiber Network micropayments</p>
+            <p style={{ fontSize:11, color:"var(--subtle)", textAlign:"center", marginTop:8 }}>CKB Fiber Network · x402 Payment Protocol</p>
           </div>
         </main>
 

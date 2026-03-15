@@ -82,7 +82,7 @@ async function fallbackRun(
   task: string,
   controller: ReadableStreamDefaultController
 ) {
-  send(controller, { type: "thinking", content: "AI temporarily unavailable — running in direct mode..." });
+  send(controller, { type: "thinking", content: "AI temporarily unavailable - running in direct mode..." });
 
   const lower = task.toLowerCase();
   const toCall: string[] = [];
@@ -172,9 +172,15 @@ Use multiple services if relevant. Provide a clear, well-formatted response.`,
             }
           }
         } catch (aiError) {
-          // AI unavailable — run fallback
+          // AI unavailable - run fallback for any connectivity/overload issue
           const msg = aiError instanceof Error ? aiError.message : "";
-          const isUnavailable = msg.includes("503") || msg.includes("529") || msg.includes("overloaded") || msg.includes("unavailable") || msg.includes("timeout") || msg.includes("timed out") || (aiError instanceof Error && "status" in aiError && (aiError as { status?: number }).status === 529);
+          const status = aiError instanceof Error && "status" in aiError ? (aiError as { status?: number }).status : 0;
+          const isUnavailable =
+            msg.includes("503") || msg.includes("529") || msg.includes("overloaded") ||
+            msg.includes("unavailable") || msg.includes("timeout") || msg.includes("timed out") ||
+            msg.includes("fetch") || msg.includes("ECONNREFUSED") || msg.includes("network") ||
+            msg.includes("connect") || msg.includes("502") || msg.includes("504") ||
+            status === 529 || status === 503 || status === 502 || status === 504;
           if (isUnavailable) {
             await fallbackRun(task, controller);
           } else {
