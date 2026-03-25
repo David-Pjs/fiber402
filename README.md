@@ -12,7 +12,7 @@ Live demo: [fiber-402.vercel.app](https://fiber-402.vercel.app)
 HTTP 402 - Payment Required
 ```
 
-Every browser, every server, every API in the world supports this status code. It was defined in 1991. The idea was simple: a server says "pay me first", the client pays, and gets access. It was never implemented, because the internet never built what goes behind it.
+Every browser, every server, every API in the world supports this status code. It was defined in 1996. The idea was simple: a server says "pay me first", the client pays, and gets access. Others have tried to implement it (Coinbase x402 on Base, Lightning L402) but gas fees and settlement constraints make true micropayments unviable on those rails.
 
 So instead, we got accounts. Subscriptions. Credit cards. Monthly plans.
 

@@ -581,7 +581,7 @@ export default function Home() {
                   </h1>
 
                   <p className="hero-sub" style={{ fontSize:13, color:"var(--muted)", lineHeight:1.8, maxWidth:400, margin:"0 auto 24px" }}>
-                    HTTP 402 existed since 1995. Every server supports it. No one ever implemented it. Fiber-402 does - for AI agents that pay autonomously, per request, with no human in the loop.
+                    HTTP 402 has existed since 1996. Others tried to implement it - Coinbase x402 on Base, Lightning L402 - but gas fees and settlement speed make sub-cent payments unviable. Fiber-402 is the first implementation where $0.001 AI agent micropayments actually work.
                   </p>
 
                   <div style={{ display:"inline-block", background:"var(--surface-2)", border:"1px solid var(--border)", borderRadius:10, padding:"12px 20px", textAlign:"left" }}>
@@ -591,7 +591,7 @@ export default function Home() {
                       <span style={{ color:"var(--text)", fontWeight:600 }}> Payment Required</span>
                     </div>
                     <div style={{ fontSize:10, color:"var(--subtle)", fontFamily:"monospace" }}>
-                      defined 1995 · never used · <span style={{ color:"var(--green)", fontWeight:700 }}>until now</span>
+                      defined 1996 · finally viable · <span style={{ color:"var(--green)", fontWeight:700 }}>on Fiber</span>
                     </div>
                   </div>
                 </div>
