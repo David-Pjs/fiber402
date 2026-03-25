@@ -34,9 +34,11 @@ The Silicon Valley subscription model is a Western assumption. Most of the world
 
 An AI agent can browse, call APIs, analyze data, and take actions without any human. But it cannot open a bank account. It cannot enter a credit card. It cannot approve a monthly subscription.
 
-There are already millions of AI agents making billions of API calls. That number doubles every few months. The payment infrastructure for this does not exist.
+There are already millions of AI agents making billions of API calls. Others are building payment infrastructure for this - but they are building products: wallets, custodians, managed services. All require a human to set up and approve. That breaks when agents run autonomously at scale.
 
-**Fiber-402 builds it.**
+The right solution is a protocol. Two lines on any API. Any agent pays automatically. No setup, no account, no human approval.
+
+**Fiber-402 is that protocol - and CKB Fiber is the only rail where $0.001 per-request payments are economically viable.**
 
 ---
 

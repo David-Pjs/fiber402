@@ -675,7 +675,7 @@ export default function Home() {
                       </div>
                       <div style={{ textAlign:"left" }}>
                         <div style={{ fontWeight:700, fontSize:13 }}>Start Autopilot</div>
-                        <div style={{ fontSize:11, color:"var(--muted)", marginTop:2 }}>Agent runs every 12s - pays real CKB, no human involved</div>
+                        <div style={{ fontSize:11, color:"var(--muted)", marginTop:2 }}>Agent runs every 12s - pays CKB automatically, no human involved</div>
                       </div>
                     </div>
                     <Play size={14} fill="currentColor" style={{ flexShrink:0, opacity:0.8 }} />
