@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // Payment verified — return the data
+  // Payment verified - return the data
   return NextResponse.json({
     service: "CKB Oracle",
     data: {

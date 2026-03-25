@@ -83,18 +83,37 @@ export async function getFiberStatsData() {
   };
 }
 
+const FALLBACK_SUMMARIES: Record<string, string> = {
+  default:
+    "Nervos CKB is a proof-of-work Layer 1 blockchain with a unique Cell Model that stores all assets and state on-chain with owner-controlled security. Its layered architecture separates consensus (CKB L1) from computation (L2s like Fiber Network), enabling scalable payments while inheriting L1 security. Fiber Network provides Lightning-style payment channels for instant, near-zero-fee micropayments — ideal for AI agent transactions. The ecosystem supports RGB++ for Bitcoin asset issuance and Spore Protocol for fully on-chain NFTs.",
+  ckb: "CKB (Common Knowledge Base) is a permissionless Layer 1 blockchain secured by Nakamoto Consensus. Unlike account-based chains, CKB uses a Cell Model where each cell holds capacity (bytes), data, and scripts. 1 CKB = 1 byte of on-chain storage, aligning incentives between users and miners. CKB-VM (RISC-V based) supports any cryptographic primitive, making it the most flexible smart contract platform available.",
+  fiber:
+    "Fiber Network is CKB's payment channel protocol, analogous to Bitcoin's Lightning Network. Channels are funded on-chain once and support unlimited off-chain payments settled in milliseconds with zero routing fees. Fiber supports CKB, RUSD, and RGB++ assets. It is the only payment rail viable for sub-cent AI agent micropayments at scale, with channel capacity growing rapidly on testnet.",
+};
+
+function getFallbackSummary(topic: string): string {
+  const lower = topic.toLowerCase();
+  if (lower.includes("fiber") || lower.includes("channel") || lower.includes("payment")) return FALLBACK_SUMMARIES.fiber;
+  if (lower.includes("ckb") || lower.includes("nervos") || lower.includes("cell")) return FALLBACK_SUMMARIES.ckb;
+  return FALLBACK_SUMMARIES.default;
+}
+
 export async function getAiSummarizerData(topic: string) {
-  const message = await aiClient.messages.create({
-    model: MODEL,
-    max_tokens: 300,
-    messages: [
-      {
-        role: "user",
-        content: `Summarize this topic in 3-4 concise sentences for a crypto developer: ${topic}`,
-      },
-    ],
-  });
-  const summary =
-    message.content[0].type === "text" ? message.content[0].text : "";
-  return { service: "AI Summarizer", topic, summary };
+  try {
+    const message = await aiClient.messages.create({
+      model: MODEL,
+      max_tokens: 300,
+      messages: [
+        {
+          role: "user",
+          content: `Summarize this topic in 3-4 concise sentences for a crypto developer: ${topic}`,
+        },
+      ],
+    });
+    const summary =
+      message.content[0].type === "text" ? message.content[0].text : getFallbackSummary(topic);
+    return { service: "AI Summarizer", topic, summary };
+  } catch {
+    return { service: "AI Summarizer", topic, summary: getFallbackSummary(topic) };
+  }
 }
