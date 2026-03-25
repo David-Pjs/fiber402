@@ -59,7 +59,7 @@ async function callService(
   const result = await sendPayment(invoice.invoice, svc.price);
   if (controller) send(controller, { type: "paid", serviceId, txHash: result.txHash });
 
-  // Call the data function directly — no HTTP, works on Vercel + localhost
+  // Call the data function directly - no HTTP, works on Vercel + localhost
   switch (serviceId) {
     case "ckb-oracle":
       return JSON.stringify(await getCkbOracleData());

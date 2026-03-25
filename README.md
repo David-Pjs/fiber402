@@ -115,7 +115,7 @@ If your balance runs low, hit "refill to 10 CKB" under your wallet card and keep
 ## For Developers: Add x402 to Any API in 2 Lines
 
 ```ts
-// src/lib/payment-402.ts is already in this repo — copy it to any project
+// src/lib/payment-402.ts is already in this repo - copy it to any project
 import { require402 } from './payment-402';
 
 // Add to any Next.js route handler:
