@@ -2,6 +2,12 @@ import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { sendPayment } from "@/lib/fiber";
 import { SERVICES } from "@/lib/services";
+import {
+  getCkbOracleData,
+  getChainAnalyticsData,
+  getFiberStatsData,
+  getAiSummarizerData,
+} from "@/lib/service-data";
 
 export const maxDuration = 120;
 
@@ -46,35 +52,26 @@ async function callService(
   const svc = SERVICES.find((s) => s.id === serviceId);
   if (!svc) return JSON.stringify({ error: "Service not found" });
 
-  const baseUrl = process.env.INTERNAL_BASE_URL
-    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
-    || process.env.NEXT_PUBLIC_BASE_URL
-    || "http://127.0.0.1:3000";
-  const url = `${baseUrl}${svc.endpoint}`;
-  const method = serviceId === "ai-summarizer" ? "POST" : "GET";
-  const bodyData = serviceId === "ai-summarizer" && topic ? { topic } : undefined;
+  // Fire the Fiber micropayment first (same as 402 flow, but without HTTP round-trip)
+  if (controller) send(controller, { type: "paying", serviceId });
+  const { newInvoice } = await import("@/lib/fiber");
+  const invoice = await newInvoice(svc.price);
+  const result = await sendPayment(invoice.invoice, svc.price);
+  if (controller) send(controller, { type: "paid", serviceId, txHash: result.txHash });
 
-  const firstRes = await fetch(url, {
-    method,
-    headers: { "Content-Type": "application/json" },
-    body: bodyData ? JSON.stringify(bodyData) : undefined,
-  });
-
-  if (firstRes.status === 402) {
-    const info = await firstRes.json();
-    const invoice = info.payment.invoice;
-    if (controller) send(controller, { type: "paying", serviceId });
-    const result = await sendPayment(invoice, svc.price);
-    if (controller) send(controller, { type: "paid", serviceId, txHash: result.txHash });
-    const secondRes = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json", "x-fiber-payment": invoice },
-      body: bodyData ? JSON.stringify(bodyData) : undefined,
-    });
-    return JSON.stringify(await secondRes.json());
+  // Call the data function directly — no HTTP, works on Vercel + localhost
+  switch (serviceId) {
+    case "ckb-oracle":
+      return JSON.stringify(await getCkbOracleData());
+    case "chain-analytics":
+      return JSON.stringify(await getChainAnalyticsData());
+    case "fiber-stats":
+      return JSON.stringify(await getFiberStatsData());
+    case "ai-summarizer":
+      return JSON.stringify(await getAiSummarizerData(topic || "the Nervos CKB ecosystem"));
+    default:
+      return JSON.stringify({ error: "Unknown service" });
   }
-
-  return JSON.stringify(await firstRes.json());
 }
 
 // Fallback: when AI is unavailable, use services directly and summarize locally
@@ -96,8 +93,12 @@ async function fallbackRun(
   for (const id of toCall) {
     const svc = SERVICES.find((s) => s.id === id)!;
     send(controller, { type: "thinking", content: `Accessing ${svc.name}...` });
-    const data = await callService(id, "Nervos CKB ecosystem", controller);
-    results[id] = JSON.parse(data);
+    try {
+      const data = await callService(id, "Nervos CKB ecosystem", controller);
+      results[id] = JSON.parse(data);
+    } catch {
+      results[id] = { error: "service unavailable" };
+    }
   }
 
   const lines: string[] = [`Here's what I found for: "${task}"\n`];
