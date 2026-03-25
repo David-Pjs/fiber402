@@ -20,11 +20,11 @@ So instead, we got accounts. Subscriptions. Credit cards. Monthly plans.
 
 ## Africa Already Showed Us a Better Model
 
-MTN, Airtel, and Glo did not sell subscriptions. They sold airtime. You load what you need, you use what you load. Showmax tried the Netflix model in Nigeria. It struggled. Flex pricing saved it.
+MTN, Airtel, and Glo did not sell subscriptions. They sold airtime. You load what you need, you use what you load. M-Pesa built an entire financial system on per-transaction micropayments. No monthly fees. No minimum balance. Pay for exactly what you use, when you use it.
 
 People do not want to pay for what they might use. They want to pay for what they actually use. Per minute. Per MB. Per call.
 
-The Silicon Valley subscription model is a Western assumption. The rest of the world already moved past it.
+The Silicon Valley subscription model is a Western assumption. Most of the world already moved past it.
 
 **Now the internet needs to catch up.**
 
@@ -114,10 +114,16 @@ If your balance runs low, hit "refill to 10 CKB" under your wallet card and keep
 
 ## For Developers: Add x402 to Any API in 2 Lines
 
-```js
-import { require402 } from 'fiber-402';
+```ts
+// src/lib/payment-402.ts is already in this repo — copy it to any project
+import { require402 } from './payment-402';
 
-app.get('/my-data', require402({ amount: 0.01 }), handler);
+// Add to any Next.js route handler:
+export async function GET(req: NextRequest) {
+  const { valid } = await verifyPaymentHeader(req);
+  if (!valid) return require402({ serviceId: 'my-api', amount: 0.01, description: 'My data' });
+  return NextResponse.json({ data: '...' });
+}
 ```
 
 That is all. Any AI agent that understands the x402 protocol will automatically pay and retry. No SDK required on the agent side. It is just HTTP.
@@ -183,7 +189,6 @@ Create `.env.local`:
 ANTHROPIC_API_KEY=your_key
 ANTHROPIC_BASE_URL=https://api.anthropic.com
 AI_MODEL=claude-haiku-4-5-20251001
-INTERNAL_BASE_URL=http://127.0.0.1:3000
 
 # Optional: connect a real Fiber node
 # FIBER_NODE_RPC_URL=http://127.0.0.1:8227
